@@ -7,6 +7,10 @@ FROM mcr.microsoft.com/dotnet/aspnet:5.0
 WORKDIR /lrm
 COPY --from=build-env /out/ .
 
+# Git 커밋 시간을 빌드 시점에 파일로 저장 (Docker build context에서)
+ARG BUILD_TIME="Unknown"
+RUN echo "${BUILD_TIME}" > /lrm/build_time.txt
+
 ENV NO_CONFIG="true"
 ENV TRANSPORT_CLASS="kcp2k.KcpTransport"
 ENV AUTH_KEY="Secret Auth Key"

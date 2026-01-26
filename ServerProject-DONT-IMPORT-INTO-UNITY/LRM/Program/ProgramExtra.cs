@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 
 namespace LightReflectiveMirror
@@ -48,6 +49,23 @@ namespace LightReflectiveMirror
 
         private static void LoadGitCommitTime()
         {
+            // 1. Docker 빌드 시 생성된 파일에서 먼저 읽기 시도
+            try
+            {
+                var buildTimeFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "build_time.txt");
+                if (File.Exists(buildTimeFile))
+                {
+                    string content = File.ReadAllText(buildTimeFile).Trim();
+                    if (!string.IsNullOrEmpty(content) && content != "Unknown")
+                    {
+                        GitCommitTime = content;
+                        return;
+                    }
+                }
+            }
+            catch { }
+
+            // 2. git 명령어로 직접 읽기 (로컬 개발 환경)
             try
             {
                 var psi = new ProcessStartInfo
