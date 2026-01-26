@@ -6,7 +6,9 @@ using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading.Tasks;
 
 namespace LightReflectiveMirror.Endpoints
@@ -89,6 +91,57 @@ namespace LightReflectiveMirror.Endpoints
             context.Response.Headers.Add("Access-Control-Allow-Headers", originHeaders);
 
             await context.Response.SendResponseAsync(HttpStatusCode.Ok);
+        }
+
+        [RestRoute("Get", "/api/health")]
+        public async Task Health(IHttpContext context)
+        {
+            await context.Response.SendResponseAsync("{\"status\":\"ok\"}");
+        }
+
+        [RestRoute("Get", "/")]
+        public async Task Dashboard(IHttpContext context)
+        {
+            try
+            {
+                // Try to load from embedded resource or file
+                string html = LoadDashboardHtml();
+                context.Response.ContentType = Grapevine.ContentType.Html;
+                await context.Response.SendResponseAsync(html);
+            }
+            catch (Exception e)
+            {
+                await context.Response.SendResponseAsync($"Dashboard error: {e.Message}");
+            }
+        }
+
+        private static string _cachedDashboardHtml = null;
+
+        private string LoadDashboardHtml()
+        {
+            if (_cachedDashboardHtml != null)
+                return _cachedDashboardHtml;
+
+            // Try to load from file first (for development)
+            var filePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "web", "index.html");
+            if (File.Exists(filePath))
+            {
+                _cachedDashboardHtml = File.ReadAllText(filePath);
+                return _cachedDashboardHtml;
+            }
+
+            // Fallback: simple dashboard
+            _cachedDashboardHtml = @"<!DOCTYPE html>
+<html>
+<head><title>LRM Relay Server</title></head>
+<body style='font-family:sans-serif;background:#1a1a2e;color:#eee;padding:40px;'>
+<h1>LRM Relay Server</h1>
+<p>Dashboard HTML not found. Check /web/index.html</p>
+<p><a href='/api/stats' style='color:#4ade80;'>View Stats API</a></p>
+<p><a href='/api/servers' style='color:#4ade80;'>View Servers API</a></p>
+</body>
+</html>";
+            return _cachedDashboardHtml;
         }
     }
 

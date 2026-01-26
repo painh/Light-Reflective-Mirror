@@ -25,7 +25,7 @@ namespace LightReflectiveMirror
         // Endpoint REST API Settings
         //========================
         public bool UseEndpoint = true;
-        public ushort EndpointPort = 8080;
+        public ushort EndpointPort = 8092;
         public bool EndpointServerList = true;
 
         //========================
