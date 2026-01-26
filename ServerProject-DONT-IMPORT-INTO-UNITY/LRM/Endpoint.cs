@@ -30,7 +30,47 @@ namespace LightReflectiveMirror.Endpoints
         private static string _cachedCompressedServerList;
         public static DateTime lastPing = DateTime.Now;
 
+        // 허용된 IP 목록 (환경변수 ALLOWED_IPS로 설정, 쉼표로 구분)
+        private static HashSet<string> _allowedIPs = null;
+
         private static List<Room> _rooms { get => Program.instance.GetRooms().Where(x => x.isPublic).ToList(); }
+
+        private static HashSet<string> GetAllowedIPs()
+        {
+            if (_allowedIPs == null)
+            {
+                var allowedIPsEnv = Environment.GetEnvironmentVariable("ALLOWED_IPS");
+                if (!string.IsNullOrEmpty(allowedIPsEnv))
+                {
+                    _allowedIPs = allowedIPsEnv
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(ip => ip.Trim())
+                        .ToHashSet();
+                }
+                else
+                {
+                    _allowedIPs = new HashSet<string>(); // 빈 목록 = 모두 허용
+                }
+            }
+            return _allowedIPs;
+        }
+
+        private static bool IsIPAllowed(IHttpContext context)
+        {
+            var allowedIPs = GetAllowedIPs();
+            if (allowedIPs.Count == 0) return true; // 설정 안되면 모두 허용
+
+            var remoteIP = context.Request.RemoteEndPoint?.Address?.ToString();
+            if (string.IsNullOrEmpty(remoteIP)) return false;
+
+            // IPv6 localhost 처리
+            if (remoteIP == "::1") remoteIP = "127.0.0.1";
+
+            // 127.0.0.1은 항상 허용
+            if (remoteIP == "127.0.0.1") return true;
+
+            return allowedIPs.Contains(remoteIP) || allowedIPs.Contains("*");
+        }
 
         private RelayStats _stats { get => new()
         {
@@ -104,6 +144,12 @@ namespace LightReflectiveMirror.Endpoints
         [RestRoute("Get", "/api/logs")]
         public async Task Logs(IHttpContext context)
         {
+            if (!IsIPAllowed(context))
+            {
+                await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
+                return;
+            }
+
             context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
             context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
 
@@ -149,6 +195,12 @@ namespace LightReflectiveMirror.Endpoints
         [RestRoute("Get", "/")]
         public async Task Dashboard(IHttpContext context)
         {
+            if (!IsIPAllowed(context))
+            {
+                await context.Response.SendResponseAsync(HttpStatusCode.Forbidden);
+                return;
+            }
+
             try
             {
                 // Try to load from embedded resource or file
