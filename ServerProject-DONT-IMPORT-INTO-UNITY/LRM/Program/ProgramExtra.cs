@@ -18,6 +18,15 @@ namespace LightReflectiveMirror
                 Console.Write(message);
             else
                 Console.WriteLine(message);
+
+            // 콘솔 출력과 함께 로그 저장소에도 저장
+            LogLevel level = color switch
+            {
+                ConsoleColor.Red or ConsoleColor.DarkRed => LogLevel.Error,
+                ConsoleColor.Yellow or ConsoleColor.DarkYellow => LogLevel.Warning,
+                _ => LogLevel.Info
+            };
+            LogStore.Instance.Add(message.Trim(), level);
         }
 
         private static void GetPublicIP()

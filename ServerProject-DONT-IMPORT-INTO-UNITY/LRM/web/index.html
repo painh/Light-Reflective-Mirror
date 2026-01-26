@@ -132,6 +132,101 @@
             padding: 40px;
             color: #666;
         }
+        .logs-section {
+            margin-top: 30px;
+        }
+        .logs-section h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #fff;
+        }
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .logs-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .log-count {
+            font-size: 12px;
+            color: #888;
+        }
+        .btn-refresh, .btn-load-more {
+            background: #3b82f6;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .btn-refresh:hover, .btn-load-more:hover {
+            background: #2563eb;
+        }
+        .btn-load-more {
+            width: 100%;
+            margin-top: 10px;
+            background: #374151;
+        }
+        .btn-load-more:hover {
+            background: #4b5563;
+        }
+        .log-list {
+            background: #0f172a;
+            border-radius: 8px;
+            border: 1px solid #333;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .log-entry {
+            padding: 8px 12px;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+        }
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        .log-entry:hover {
+            background: #1e293b;
+        }
+        .log-time {
+            color: #64748b;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .log-level {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+        .log-level.info {
+            background: #3b82f620;
+            color: #60a5fa;
+        }
+        .log-level.warning {
+            background: #f59e0b20;
+            color: #fbbf24;
+        }
+        .log-level.error {
+            background: #ef444420;
+            color: #f87171;
+        }
+        .log-message {
+            color: #e2e8f0;
+            word-break: break-all;
+        }
         .server-info {
             background: #16213e;
             padding: 15px 20px;
@@ -217,6 +312,22 @@
             <div class="room-list" id="roomList">
                 <div class="empty-state">No active rooms</div>
             </div>
+        </div>
+
+        <div class="logs-section">
+            <div class="logs-header">
+                <h2>Server Logs</h2>
+                <div class="logs-controls">
+                    <span class="log-count" id="logCount">0 logs</span>
+                    <button class="btn-refresh" onclick="fetchLogs(true)">Refresh</button>
+                </div>
+            </div>
+            <div class="log-list" id="logList">
+                <div class="empty-state">No logs available</div>
+            </div>
+            <button class="btn-load-more" id="btnLoadMore" onclick="loadMoreLogs()" style="display: none;">
+                Load older logs
+            </button>
         </div>
     </div>
 
@@ -323,11 +434,106 @@
             fetchRooms();
         }
 
+        // Logs state
+        let logs = [];
+        let oldestLogId = null;
+        let hasMoreLogs = false;
+
+        async function fetchLogs(reset = false) {
+            try {
+                let url = '/api/logs?count=100';
+                if (!reset && oldestLogId) {
+                    url += `&before=${oldestLogId}`;
+                }
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (reset) {
+                    logs = data.logs || [];
+                } else {
+                    logs = [...logs, ...(data.logs || [])];
+                }
+
+                hasMoreLogs = data.hasMore;
+
+                if (logs.length > 0) {
+                    oldestLogId = logs[logs.length - 1].Id;
+                }
+
+                renderLogs();
+                document.getElementById('logCount').textContent = `${data.totalCount} logs total`;
+                document.getElementById('btnLoadMore').style.display = hasMoreLogs ? 'block' : 'none';
+            } catch (error) {
+                console.error('Failed to fetch logs:', error);
+            }
+        }
+
+        function loadMoreLogs() {
+            fetchLogs(false);
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logList');
+
+            if (logs.length === 0) {
+                container.innerHTML = '<div class="empty-state">No logs available</div>';
+                return;
+            }
+
+            container.innerHTML = logs.map(log => {
+                const time = formatLogTime(log.Timestamp);
+                const levelClass = getLevelClass(log.Level);
+                const levelText = getLevelText(log.Level);
+
+                return `
+                    <div class="log-entry">
+                        <span class="log-time">${time}</span>
+                        <span class="log-level ${levelClass}">${levelText}</span>
+                        <span class="log-message">${escapeHtml(log.Message)}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function formatLogTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('ko-KR', {
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function getLevelClass(level) {
+            switch (level) {
+                case 0: return 'info';
+                case 1: return 'warning';
+                case 2: return 'error';
+                default: return 'info';
+            }
+        }
+
+        function getLevelText(level) {
+            switch (level) {
+                case 0: return 'INFO';
+                case 1: return 'WARN';
+                case 2: return 'ERROR';
+                default: return 'INFO';
+            }
+        }
+
         // Initial load
         refresh();
+        fetchLogs(true);
 
-        // Refresh every 2 seconds
+        // Refresh every 2 seconds (stats and rooms only)
         refreshInterval = setInterval(refresh, 2000);
+
+        // Refresh logs every 5 seconds
+        setInterval(() => fetchLogs(true), 5000);
     </script>
 </body>
 </html>

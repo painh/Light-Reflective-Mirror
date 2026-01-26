@@ -99,6 +99,51 @@ namespace LightReflectiveMirror.Endpoints
             await context.Response.SendResponseAsync("{\"status\":\"ok\"}");
         }
 
+        [RestRoute("Get", "/api/logs")]
+        public async Task Logs(IHttpContext context)
+        {
+            context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
+
+            int count = 100;
+            long? beforeId = null;
+
+            string countStr = context.Request.QueryString["count"];
+            if (!string.IsNullOrEmpty(countStr) && int.TryParse(countStr, out int parsedCount))
+            {
+                count = Math.Min(parsedCount, 500); // 최대 500개로 제한
+            }
+
+            string beforeStr = context.Request.QueryString["before"];
+            if (!string.IsNullOrEmpty(beforeStr) && long.TryParse(beforeStr, out long parsedBefore))
+            {
+                beforeId = parsedBefore;
+            }
+
+            var logs = LogStore.Instance.GetLogs(count, beforeId);
+            var response = new
+            {
+                logs = logs,
+                totalCount = LogStore.Instance.Count,
+                hasMore = logs.Count > 0 && logs.Count == count
+            };
+
+            string json = JsonConvert.SerializeObject(response, Formatting.Indented);
+            await context.Response.SendResponseAsync(json);
+        }
+
+        [RestRoute("Options", "/api/logs")]
+        public async Task LogsOptions(IHttpContext context)
+        {
+            var originHeaders = context.Request.Headers["Access-Control-Request-Headers"];
+
+            context.Response.Headers.Add("Access-Control-Allow-Origin", "*");
+            context.Response.Headers.Add("Access-Control-Allow-Methods", "GET, OPTIONS");
+            context.Response.Headers.Add("Access-Control-Allow-Headers", originHeaders);
+
+            await context.Response.SendResponseAsync(HttpStatusCode.Ok);
+        }
+
         [RestRoute("Get", "/")]
         public async Task Dashboard(IHttpContext context)
         {
@@ -160,7 +205,7 @@ namespace LightReflectiveMirror.Endpoints
                 (services) =>
                 {
                     services.AddLogging(configure => configure.AddConsole());
-                    services.Configure<LoggerFilterOptions>(options => options.MinLevel = LogLevel.None);
+                    services.Configure<LoggerFilterOptions>(options => options.MinLevel = Microsoft.Extensions.Logging.LogLevel.None);
                 }, (server) =>
                 {
                     server.Prefixes.Add($"http://*:{port}/");
