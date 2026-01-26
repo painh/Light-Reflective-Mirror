@@ -20,6 +20,7 @@ namespace LightReflectiveMirror.Endpoints
         public int RoomCount;
         public int PublicRoomCount;
         public TimeSpan Uptime;
+        public string BuildTime;
     }
 
     [RestResource]
@@ -36,7 +37,8 @@ namespace LightReflectiveMirror.Endpoints
             ConnectedClients = Program.instance.GetConnections(),
             RoomCount = Program.instance.GetRooms().Count,
             PublicRoomCount = Program.instance.GetPublicRoomCount(),
-            Uptime = Program.instance.GetUptime()
+            Uptime = Program.instance.GetUptime(),
+            BuildTime = Program.GitCommitTime
         }; }
 
         public static void RoomsModified()

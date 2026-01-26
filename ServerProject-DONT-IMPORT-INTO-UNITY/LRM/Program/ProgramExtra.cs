@@ -1,11 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 
 namespace LightReflectiveMirror
 {
     partial class Program
     {
+        public static string GitCommitTime { get; private set; } = "Unknown";
+
         public List<Room> GetRooms() => _relay.rooms;
         public int GetConnections() => _currentConnections.Count;
         public TimeSpan GetUptime() => DateTime.Now - _startupTime;
@@ -43,9 +46,42 @@ namespace LightReflectiveMirror
             }
         }
 
+        private static void LoadGitCommitTime()
+        {
+            try
+            {
+                var psi = new ProcessStartInfo
+                {
+                    FileName = "git",
+                    Arguments = "log -1 --format=%ci",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(psi);
+                if (process != null)
+                {
+                    string output = process.StandardOutput.ReadToEnd().Trim();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrEmpty(output) && DateTime.TryParse(output, out DateTime commitTime))
+                    {
+                        GitCommitTime = commitTime.ToString("yyyy-MM-dd HH:mm:ss");
+                    }
+                }
+            }
+            catch
+            {
+                GitCommitTime = "Unknown";
+            }
+        }
+
         void WriteTitle()
         {
-            string t = @"  
+            LoadGitCommitTime();
+
+            string t = $@"
                            w  c(..)o   (
   _       _____   __  __    \__(-)    __)
  | |     |  __ \ |  \/  |       /\   (
@@ -54,6 +90,7 @@ namespace LightReflectiveMirror
  | |____ | | \ \ | |  | |       | \
  |______||_|  \_\|_|  |_|      m  m copyright monkesoft 2021
 
+ Build: {GitCommitTime}
 ";
 
             string load = $"Chimp Event Listener Initializing... OK" +
