@@ -45,6 +45,9 @@ namespace LightReflectiveMirror
             _cachedClientRooms.Add(clientId, room);
             _cachedRooms.Add(room.serverId, room);
 
+            string connectType = room.supportsDirectConnect ? (useNatPunch ? "NAT펀치" : "Direct") : "릴레이전용";
+            Program.WriteLogMessage($"[클라이언트:{clientId}] 방 생성 - ID:{room.serverId}, 이름:{serverName}, 연결:{connectType}, 최대:{maxPlayers}명", ConsoleColor.Yellow);
+
             int pos = 0;
             byte[] sendBuffer = _sendBuffers.Rent(5);
 
@@ -84,13 +87,20 @@ namespace LightReflectiveMirror
                     {
                         sendJoinBuffer.WriteByte(ref sendJoinPos, (byte)OpCodes.DirectConnectIP);
 
-                        if (Program.instance.NATConnections[clientId].Address.Equals(room.hostIP.Address))
-                            sendJoinBuffer.WriteString(ref sendJoinPos, room.hostLocalIP == localIP ? "127.0.0.1" : room.hostLocalIP);
+                        bool sameNetwork = Program.instance.NATConnections[clientId].Address.Equals(room.hostIP.Address);
+                        string connectIP;
+                        if (sameNetwork)
+                            connectIP = room.hostLocalIP == localIP ? "127.0.0.1" : room.hostLocalIP;
                         else
-                            sendJoinBuffer.WriteString(ref sendJoinPos, room.hostIP.Address.ToString());
+                            connectIP = room.hostIP.Address.ToString();
 
+                        sendJoinBuffer.WriteString(ref sendJoinPos, connectIP);
                         sendJoinBuffer.WriteInt(ref sendJoinPos, room.useNATPunch ? room.hostIP.Port : room.port);
                         sendJoinBuffer.WriteBool(ref sendJoinPos, room.useNATPunch);
+
+                        string p2pType = room.useNATPunch ? "NAT펀치" : "Direct";
+                        string networkInfo = sameNetwork ? "동일네트워크" : "외부";
+                        Program.WriteLogMessage($"[클라이언트:{clientId}] 방 입장 - ID:{serverId}, P2P({p2pType}, {networkInfo}) → {connectIP}", ConsoleColor.Green);
 
                         Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendJoinBuffer, 0, sendJoinPos));
 
@@ -113,6 +123,8 @@ namespace LightReflectiveMirror
                     }
                     else
                     {
+                        Program.WriteLogMessage($"[클라이언트:{clientId}] 방 입장 - ID:{serverId}, 릴레이 연결", ConsoleColor.Cyan);
+
                         sendJoinBuffer.WriteByte(ref sendJoinPos, (byte)OpCodes.ServerJoined);
                         sendJoinBuffer.WriteInt(ref sendJoinPos, clientId);
 
@@ -127,6 +139,8 @@ namespace LightReflectiveMirror
             }
 
             // If it got to here, then the server was not found, or full. Tell the client.
+            Program.WriteLogMessage($"[클라이언트:{clientId}] 방 입장 실패 - ID:{serverId} (방 없음 또는 정원초과)", ConsoleColor.Red);
+
             int pos = 0;
             byte[] sendBuffer = _sendBuffers.Rent(1);
 
@@ -148,6 +162,8 @@ namespace LightReflectiveMirror
                 // if host left
                 if (rooms[i].hostId == clientId)
                 {
+                    Program.WriteLogMessage($"[클라이언트:{clientId}] 방 종료 - ID:{rooms[i].serverId}, 접속자 {rooms[i].clients.Count}명 퇴장", ConsoleColor.Yellow);
+
                     int pos = 0;
                     byte[] sendBuffer = _sendBuffers.Rent(1);
                     sendBuffer.WriteByte(ref pos, (byte)OpCodes.ServerLeft);
@@ -174,6 +190,9 @@ namespace LightReflectiveMirror
 
                     if (rooms[i].clients.RemoveAll(x => x == clientId) > 0)
                     {
+                        string leaveReason = requiredHostId != -1 ? "강퇴" : "퇴장";
+                        Program.WriteLogMessage($"[클라이언트:{clientId}] 방 {leaveReason} - ID:{rooms[i].serverId}", ConsoleColor.Cyan);
+
                         int pos = 0;
                         byte[] sendBuffer = _sendBuffers.Rent(5);
 

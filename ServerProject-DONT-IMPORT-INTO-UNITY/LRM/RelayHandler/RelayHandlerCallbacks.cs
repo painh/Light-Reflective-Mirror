@@ -12,6 +12,7 @@ namespace LightReflectiveMirror
         public void ClientConnected(int clientId)
         {
             _pendingAuthentication.Add(clientId);
+            Program.WriteLogMessage($"[클라이언트:{clientId}] 연결됨, 인증 대기중...", ConsoleColor.Cyan);
             var buffer = _sendBuffers.Rent(1);
             int pos = 0;
             buffer.WriteByte(ref pos, (byte)OpCodes.AuthenticationRequest);
@@ -42,16 +43,17 @@ namespace LightReflectiveMirror
                         if (authResponse == Program.conf.AuthenticationKey)
                         {
                             _pendingAuthentication.Remove(clientId);
+                            Program.WriteLogMessage($"[클라이언트:{clientId}] 인증 성공", ConsoleColor.Green);
                             int writePos = 0;
                             var sendBuffer = _sendBuffers.Rent(1);
                             sendBuffer.WriteByte(ref writePos, (byte)OpCodes.Authenticated);
                             Program.transport.ServerSend(clientId, 0, new ArraySegment<byte>(sendBuffer, 0, writePos));
-                            
+
                             _sendBuffers.Return(sendBuffer);
                         }
                         else
                         {
-                            Program.WriteLogMessage($"Client {clientId} sent wrong auth key! Removing from LRM node.");
+                            Program.WriteLogMessage($"[클라이언트:{clientId}] 인증 실패 - 잘못된 인증키", ConsoleColor.Red);
                             Program.transport.ServerDisconnect(clientId);
                         }
                     }
@@ -110,7 +112,7 @@ namespace LightReflectiveMirror
             catch
             {
                 // sent invalid data, boot them hehe
-                Program.WriteLogMessage($"Client {clientId} sent bad data! Removing from LRM node.");
+                Program.WriteLogMessage($"[클라이언트:{clientId}] 잘못된 데이터 전송 - 연결 종료", ConsoleColor.Red);
                 Program.transport.ServerDisconnect(clientId);
             }
         }
